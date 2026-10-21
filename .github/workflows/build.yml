@@ -1,0 +1,50 @@
+name: Сборка APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Найти проект
+        run: |
+          for z in *.zip; do [ -f "$z" ] && unzip -q -o "$z"; done
+          GW=$(find . -name gradlew -not -path './.git/*' | head -1)
+          if [ -z "$GW" ]; then
+            echo "::error::Не найден проект. Загрузите NeonDrift.zip в корень репозитория."
+            exit 1
+          fi
+          echo "PROJECT=$(dirname "$GW")" >> "$GITHUB_ENV"
+
+      - name: Собрать APK
+        run: |
+          cd "$PROJECT"
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/NeonDrift.apk"
+
+      - name: Выложить APK в Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Neon Drift ${{ github.run_number }}
+          files: NeonDrift.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NeonDrift-apk
+          path: NeonDrift.apk
